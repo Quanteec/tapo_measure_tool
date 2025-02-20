@@ -11,6 +11,7 @@ from tapo import ApiClient
 main_loop = asyncio.new_event_loop()  # Create a new event loop for the main thread
 asyncio.set_event_loop(main_loop)
 
+
 def load_config():
     CONFIG_FILE = "config.json"
     if not os.path.exists(CONFIG_FILE):
@@ -180,9 +181,12 @@ async def measure_power(tapo_ip, measure_interval, measure_duration, csv_name):
 
 def on_close():
     global measurement_task
-    if measurement_task is not None and not measurement_task.done():
-        measurement_task.cancel()  # Cancel the task properly
-
+    try:
+        if measurement_task is not None and not measurement_task.done():
+            measurement_task.cancel()  # Cancel the task properly
+    except NameError:
+        print("No task to cancel")
+    
     root.quit()  # Quit the Tkinter loop
     root.destroy()
 
