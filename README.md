@@ -13,7 +13,7 @@ A GUI-based tool to measure and log power consumption from **TP-Link Tapo P110**
 
 ### **1. Clone the Repository**
 ```sh
-git clone https://github.com/yourusername/tapo-measure-tool.git
+git clone https://github.com/Quanteec/tapo_measure_tool.git
 cd tapo-measure-tool
 ```
 
@@ -32,7 +32,7 @@ pip install -r requirements.txt
 
 ### **1. Launch the Application**
 ```sh
-python measure.py
+python tapo_measure_tool.py
 ```
 
 ### **2. Configure Your Settings**
