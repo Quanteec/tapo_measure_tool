@@ -11,12 +11,16 @@ from tapo import ApiClient
 main_loop = asyncio.new_event_loop()  # Create a new event loop for the main thread
 asyncio.set_event_loop(main_loop)
 
+shouldSaveIfCancelled = False
+measurement_task = None  # Global variable to hold the measurement task
+
 def load_config():
     CONFIG_FILE = "config.json"
     if not os.path.exists(CONFIG_FILE):
         default_config = {
             "username": "",
             "password": "",
+            "filename": "measurement_data",
             "ip_addresses": [],
             "selected_ip": "",
             "measure_interval": 0.5,
@@ -35,12 +39,16 @@ def save_config(config):
 tapo_config = load_config()
 
 def set_all_widgets_state(state, parent):
+    global measure_button
     for widget in parent.winfo_children():
         if isinstance(widget, (tk.Button, tk.Entry, ttk.Combobox)):
             widget.config(state=state)
         elif isinstance(widget, tk.Frame):
             set_all_widgets_state(state, widget)  # Recursively apply to frame children
-
+    if state == "disabled":
+        measure_button.config(state="normal", text="Stop Measurement", command=cancel_measurement)
+    else:
+        measure_button.config(state="normal", text="Start Measurement", command=start_measurement_threadsafe)
 
 def get_unique_filename(folder, filename):
     base_filename = filename
@@ -100,14 +108,26 @@ async def ping_ip_async():
         update_status(f"Error: {e}", "red")
 
 def start_measurement_threadsafe():
+    global shouldSaveIfCancelled
+    shouldSaveIfCancelled = False
+    measure_button.config(state="normal")
     asyncio.run_coroutine_threadsafe(measure_power_async(), main_loop)
+
+    
+def cancel_measurement():
+    global measurement_task, shouldSaveIfCancelled
+    shouldSaveIfCancelled = True
+    if measurement_task is not None and not measurement_task.done():
+        measurement_task.cancel()
+        #update_status("Stopping measurement...", "orange")
 
 async def measure_power_async():
     global measurement_task
     root.after(0, set_all_widgets_state, "disabled", root)  # Ensure UI updates in the main thread
-    
+
     tapo_config["username"] = username_var.get()
     tapo_config["password"] = password_var.get()
+    tapo_config["filename"] = filename_var.get()
     tapo_config["results_folder"] = folder_var.get()
     tapo_config["measure_interval"] = float(interval_var.get())
     tapo_config["measure_duration"] = int(duration_var.get())
@@ -166,8 +186,9 @@ async def measure_power(tapo_ip, measure_interval, measure_duration, csv_name):
             await asyncio.sleep(measure_interval)  # Handle sleep cancellation
         except asyncio.CancelledError:
             print("Measurement task was cancelled.")
-            measure_interrupt = True
-            break  # Exit the loop if the task is cancelled    
+            if not shouldSaveIfCancelled:
+                measure_interrupt = True
+            break  # Exit the loop if the task is cancelled
 
     if not measure_interrupt:
         progress_bar["value"] = 100
@@ -203,7 +224,7 @@ threading.Thread(target=main_loop.run_until_complete, args=(run_main_loop(),), d
 # Variables
 username_var = tk.StringVar(value=tapo_config.get("username", ""))
 password_var = tk.StringVar(value=tapo_config.get("password", ""))
-filename_var = tk.StringVar()
+filename_var = tk.StringVar(value=tapo_config.get("filename", ""))
 folder_var = tk.StringVar(value=tapo_config.get("results_folder", "./results"))
 ip_var = tk.StringVar(value=tapo_config.get("selected_ip", ""))
 interval_var = tk.StringVar(value=str(tapo_config.get("measure_interval", "0.5")))
